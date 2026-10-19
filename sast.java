@@ -4,16 +4,33 @@ import java.io.ObjectInputStream;
 import java.io.FileInputStream;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 public class MoreSastVulnerabilities {
 
-    // 1. Command Injection (High)
+    // Allowlist of permitted command names (no arguments accepted from user input)
+    private static final Set<String> ALLOWED_COMMANDS = new HashSet<>(Arrays.asList(
+            "whoami", "date", "uptime"
+    ));
+
+    // 1. Command Injection (High) — fixed: allowlist-gate before exec,
+    //    and command is passed as a String[] (not a shell string) to prevent
+    //    shell metacharacter interpretation.
     public void execute(HttpServletRequest request) throws Exception {
 
         String cmd = request.getParameter("cmd");
 
-        Runtime.getRuntime().exec(cmd);
+        // Reject any command not on the explicit allowlist.
+        if (cmd == null || !ALLOWED_COMMANDS.contains(cmd)) {
+            throw new IllegalArgumentException("Command not permitted: " + cmd);
+        }
+
+        // Pass as a single-element String[] so the JVM uses execve directly,
+        // with no shell involved — this is the standard scanner-recognized safe form.
+        Runtime.getRuntime().exec(new String[]{cmd});
     }
 
     // 2. Weak Hash Algorithm (Medium)
